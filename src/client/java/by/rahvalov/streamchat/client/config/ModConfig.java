@@ -1,8 +1,9 @@
-package com.example.client.config;
+package by.rahvalov.streamchat.client.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.fabricmc.loader.api.FabricLoader;
+import by.rahvalov.streamchat.StreamChatMod;
 
 import java.io.File;
 import java.io.FileReader;
@@ -13,7 +14,11 @@ public class ModConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final File CONFIG_FILE = FabricLoader.getInstance().getConfigDir().resolve("streamchat.json").toFile();
 
-    public static ModConfig INSTANCE = new ModConfig();
+    private static ModConfig instance = new ModConfig();
+
+    public static ModConfig getInstance() {
+        return instance;
+    }
 
     public int configVersion = 1;
     public String tiktokUsername = "";
@@ -30,14 +35,14 @@ public class ModConfig {
             try (FileReader reader = new FileReader(CONFIG_FILE)) {
                 ModConfig loaded = GSON.fromJson(reader, ModConfig.class);
                 if (loaded != null) {
-                    INSTANCE = loaded;
-                    if (INSTANCE.configVersion < 1) {
-                        INSTANCE.configVersion = 1;
+                    instance = loaded;
+                    if (instance.configVersion < 1) {
+                        instance.configVersion = 1;
                         save();
                     }
                 }
             } catch (IOException e) {
-                System.err.println("Failed to load StreamChat config: " + e.getMessage());
+                StreamChatMod.LOGGER.error("Failed to load StreamChat config: {}", e.getMessage());
             }
         } else {
             save();
@@ -48,10 +53,10 @@ public class ModConfig {
         try {
             CONFIG_FILE.getParentFile().mkdirs();
             try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
-                GSON.toJson(INSTANCE, writer);
+                GSON.toJson(instance, writer);
             }
         } catch (IOException e) {
-            System.err.println("Failed to save StreamChat config: " + e.getMessage());
+            StreamChatMod.LOGGER.error("Failed to save StreamChat config: {}", e.getMessage());
         }
     }
 }

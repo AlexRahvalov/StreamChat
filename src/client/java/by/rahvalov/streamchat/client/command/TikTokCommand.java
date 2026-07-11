@@ -1,7 +1,7 @@
-package com.example.client.command;
+package by.rahvalov.streamchat.client.command;
 
-import com.example.client.config.ModConfig;
-import com.example.client.tiktok.TikTokLiveManager;
+import by.rahvalov.streamchat.client.config.ModConfig;
+import by.rahvalov.streamchat.client.tiktok.TikTokLiveManager;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -15,10 +15,10 @@ public class TikTokCommand {
                     .then(ClientCommands.argument("username", StringArgumentType.word())
                         .executes(context -> {
                             String username = StringArgumentType.getString(context, "username");
-                            ModConfig.INSTANCE.tiktokUsername = username;
+                            ModConfig.getInstance().tiktokUsername = username;
                             ModConfig.save();
                             
-                            context.getSource().sendFeedback(Component.literal("§e[TikTok] Connecting to " + username + "..."));
+                            context.getSource().sendFeedback(Component.literal("§e[TikTok] Подключение к " + username + "..."));
                             
                             // Stop existing connection if any
                             TikTokLiveManager.stop();
@@ -32,7 +32,7 @@ public class TikTokCommand {
                 .then(ClientCommands.literal("disconnect")
                     .executes(context -> {
                         TikTokLiveManager.stop();
-                        context.getSource().sendFeedback(Component.literal("§c[TikTok] Disconnected from stream."));
+                        context.getSource().sendFeedback(Component.literal("§c[TikTok] Отключено от стрима."));
                         return 1;
                     })
                 )

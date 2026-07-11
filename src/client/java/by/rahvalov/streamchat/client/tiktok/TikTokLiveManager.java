@@ -1,6 +1,7 @@
-package com.example.client.tiktok;
+package by.rahvalov.streamchat.client.tiktok;
 
-import com.example.client.config.ModConfig;
+import by.rahvalov.streamchat.client.config.ModConfig;
+import by.rahvalov.streamchat.StreamChatMod;
 import io.github.jwdeveloper.tiktok.TikTokLive;
 import io.github.jwdeveloper.tiktok.live.LiveClient;
 import net.minecraft.client.Minecraft;
@@ -8,8 +9,8 @@ import net.minecraft.network.chat.Component;
 
 public class TikTokLiveManager {
 
-    private static LiveClient client;
-    private static long connectionStartTime = 0;
+    private static volatile LiveClient client;
+    private static volatile long connectionStartTime = 0;
 
     private static boolean isRecentEvent() {
         // Ignore events received within the first 1.5 seconds of connecting (backlog)
@@ -17,16 +18,16 @@ public class TikTokLiveManager {
     }
 
     public static void start() {
-        if (ModConfig.INSTANCE.tiktokUsername == null || ModConfig.INSTANCE.tiktokUsername.trim().isEmpty()) {
+        if (ModConfig.getInstance().tiktokUsername == null || ModConfig.getInstance().tiktokUsername.trim().isEmpty()) {
             return; // No username configured
         }
 
         new Thread(() -> {
             try {
-                client = TikTokLive.newClient(ModConfig.INSTANCE.tiktokUsername)
+                client = TikTokLive.newClient(ModConfig.getInstance().tiktokUsername)
                     .onConnected((client, event) -> {
                         connectionStartTime = System.currentTimeMillis();
-                        sendMessage("§a[TikTok] Успешно подключено к стриму " + ModConfig.INSTANCE.tiktokUsername + "!");
+                        sendMessage("§a[TikTok] Успешно подключено к стриму " + ModConfig.getInstance().tiktokUsername + "!");
                     })
                     .onDisconnected((client, event) -> {
                         connectionStartTime = 0;
@@ -36,43 +37,43 @@ public class TikTokLiveManager {
                         sendMessage("§c[TikTok] Ошибка: " + event.getException().getMessage());
                     })
                     .onComment((client, event) -> {
-                        if (isRecentEvent() && ModConfig.INSTANCE.showComments) {
+                        if (isRecentEvent() && ModConfig.getInstance().showComments) {
                             sendMessage("§f[TikTok] §b" + event.getUser().getProfileName() + "§f: " + event.getText());
                         }
                     })
                     .onGift((client, event) -> {
-                        if (isRecentEvent() && ModConfig.INSTANCE.showGifts) {
+                        if (isRecentEvent() && ModConfig.getInstance().showGifts) {
                             sendMessage("§f[TikTok] §d" + event.getUser().getProfileName() + " отправил(а) " + event.getGift().getName() + " x" + event.getCombo());
                         }
                     })
                     .onLike((client, event) -> {
-                        if (isRecentEvent() && ModConfig.INSTANCE.showLikes) {
+                        if (isRecentEvent() && ModConfig.getInstance().showLikes) {
                             sendMessage("§f[TikTok] §c" + event.getUser().getProfileName() + " поставил(-а) лайк трансляции");
                         }
                     })
                     .onFollow((client, event) -> {
-                        if (isRecentEvent() && ModConfig.INSTANCE.showNewFollowers) {
+                        if (isRecentEvent() && ModConfig.getInstance().showNewFollowers) {
                             sendMessage("§f[TikTok] §e" + event.getUser().getProfileName() + " теперь подписчик");
                         }
                     })
                     .onShare((client, event) -> {
-                        if (isRecentEvent() && ModConfig.INSTANCE.showShares) {
+                        if (isRecentEvent() && ModConfig.getInstance().showShares) {
                             sendMessage("§f[TikTok] §9" + event.getUser().getProfileName() + " поделился(лась) трансляцией");
                         }
                     })
                     .onJoin((client, event) -> {
-                        if (isRecentEvent() && ModConfig.INSTANCE.showNewViewers) {
+                        if (isRecentEvent() && ModConfig.getInstance().showNewViewers) {
                             sendMessage("§f[TikTok] §7" + event.getUser().getProfileName() + " теперь с нами");
                         }
                     })
                     .onSubscribe((client, event) -> {
-                        if (isRecentEvent() && ModConfig.INSTANCE.showSuperfanSubscriptions) {
+                        if (isRecentEvent() && ModConfig.getInstance().showSuperfanSubscriptions) {
                             sendMessage("§f[TikTok] §6" + event.getUser().getProfileName() + " оформил(а) платную подписку!");
                         }
                     })
                     .buildAndConnect();
             } catch (Exception e) {
-                e.printStackTrace();
+                StreamChatMod.LOGGER.error("TikTokLive Error", e);
             }
         }, "TikTokLive-Thread").start();
     }

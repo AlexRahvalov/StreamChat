@@ -5,30 +5,23 @@
 	"name": "Stream Chat",
 	"description": "Broadcasts TikTok Live chat events to Minecraft.",
 	"authors": [
-		"Me!"
+		"AlexRahvalov"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://github.com/AlexRahvalov/",
+		"sources": "https://github.com/AlexRahvalov/StreamChat"
 	},
 	"license": "CC0-1.0",
 	"icon": "assets/streamchat/icon.png",
-	"environment": "*",
+	"environment": "client",
 	"entrypoints": {
 		"main": [
-			"com.example.ExampleMod"
+			"by.rahvalov.streamchat.StreamChatMod"
 		],
 		"client": [
-			"com.example.client.ExampleModClient"
+			"by.rahvalov.streamchat.client.StreamChatModClient"
 		]
 	},
-	"mixins": [
-		"streamchat.mixins.json",
-		{
-			"config": "streamchat.client.mixins.json",
-			"environment": "client"
-		}
-	],
 	"depends": {
 		"fabricloader": ">=0.19.3",
 		"minecraft": "~26.1.2",
