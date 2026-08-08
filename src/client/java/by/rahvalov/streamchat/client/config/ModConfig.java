@@ -20,29 +20,48 @@ public class ModConfig {
         return instance;
     }
 
-    public int configVersion = 1;
-    public String tiktokUsername = "";
-    public boolean showGifts = true;
-    public boolean showNewFollowers = true;
-    public boolean showNewViewers = true;
-    public boolean showSuperfanSubscriptions = true;
-    public boolean showComments = true;
-    public boolean showLikes = true;
-    public boolean showShares = true;
+    public enum DisplayMode {
+        HIDDEN, CHAT, ACTION_BAR, TITLE
+    }
 
+    public int configVersion = 2;
+    public String tiktokUsername = "";
+    
+    public DisplayMode displayGifts = DisplayMode.TITLE;
+    public DisplayMode displayNewFollowers = DisplayMode.CHAT;
+    public DisplayMode displayNewViewers = DisplayMode.ACTION_BAR;
+    public DisplayMode displaySuperfanSubscriptions = DisplayMode.TITLE;
+    public DisplayMode displayComments = DisplayMode.CHAT;
+    public DisplayMode displayLikes = DisplayMode.ACTION_BAR;
+    public DisplayMode displayShares = DisplayMode.CHAT;
+
+    public void validate() {
+        if (displayGifts == null) displayGifts = DisplayMode.TITLE;
+        if (displayNewFollowers == null) displayNewFollowers = DisplayMode.CHAT;
+        if (displayNewViewers == null) displayNewViewers = DisplayMode.ACTION_BAR;
+        if (displaySuperfanSubscriptions == null) displaySuperfanSubscriptions = DisplayMode.TITLE;
+        if (displayComments == null) displayComments = DisplayMode.CHAT;
+        if (displayLikes == null) displayLikes = DisplayMode.ACTION_BAR;
+        if (displayShares == null) displayShares = DisplayMode.CHAT;
+    }
+
+    @SuppressWarnings("null")
     public static void load() {
         if (CONFIG_FILE.exists()) {
             try (FileReader reader = new FileReader(CONFIG_FILE)) {
                 ModConfig loaded = GSON.fromJson(reader, ModConfig.class);
                 if (loaded != null) {
                     instance = loaded;
-                    if (instance.configVersion < 1) {
-                        instance.configVersion = 1;
+                    instance.validate();
+                    if (instance.configVersion < 2) {
+                        instance.configVersion = 2;
                         save();
                     }
                 }
-            } catch (IOException e) {
-                StreamChatMod.LOGGER.error("Failed to load StreamChat config: {}", e.getMessage());
+            } catch (Exception e) {
+                StreamChatMod.LOGGER.error("Failed to load StreamChat config, recreating defaults: {}", e.getMessage());
+                instance = new ModConfig();
+                save();
             }
         } else {
             save();
