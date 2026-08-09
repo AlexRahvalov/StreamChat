@@ -7,7 +7,6 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.minecraft.network.chat.Component;
 
-@SuppressWarnings("null")
 public class TikTokCommand {
     public static void register() {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
@@ -18,14 +17,11 @@ public class TikTokCommand {
                             String username = StringArgumentType.getString(context, "username");
                             ModConfig.getInstance().tiktokUsername = username;
                             ModConfig.save();
-                            
-                            context.getSource().sendFeedback(Component.literal("§e[TikTok] Подключение к " + username + "..."));
-                            
-                            // Stop existing connection if any
-                            TikTokLiveManager.stop();
-                            // Start new connection
-                            TikTokLiveManager.start();
-                            
+
+                            context.getSource().sendFeedback(
+                                Component.literal("§e[TikTok] Подключение к " + username + "...")
+                            );
+                            TikTokLiveManager.restart();
                             return 1;
                         })
                     )

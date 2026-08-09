@@ -1,142 +1,204 @@
 package by.rahvalov.streamchat.client.tiktok;
 
-import by.rahvalov.streamchat.client.config.ModConfig;
 import by.rahvalov.streamchat.StreamChatMod;
+import by.rahvalov.streamchat.client.config.EventKind;
+import by.rahvalov.streamchat.client.config.ModConfig;
 import io.github.jwdeveloper.tiktok.TikTokLive;
 import io.github.jwdeveloper.tiktok.live.LiveClient;
-import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
 
 public class TikTokLiveManager {
+
+    private static final Object LOCK = new Object();
+    private static final long BACKLOG_MILLIS = 1500L;
+    private static final long STOP_JOIN_MILLIS = 5000L;
 
     private static volatile LiveClient client;
     private static volatile Thread liveThread;
     private static volatile long connectionStartTime = 0;
 
-    private static boolean isRecentEvent() {
-        // Ignore events received within the first 1.5 seconds of connecting (backlog)
-        return connectionStartTime > 0 && (System.currentTimeMillis() - connectionStartTime) > 1500;
+    private static boolean isPastBacklogWindow() {
+        return connectionStartTime > 0 && (System.currentTimeMillis() - connectionStartTime) > BACKLOG_MILLIS;
+    }
+
+    public static boolean isRunning() {
+        Thread thread = liveThread;
+        return thread != null && thread.isAlive();
     }
 
     public static void start() {
-        if (ModConfig.getInstance().tiktokUsername == null || ModConfig.getInstance().tiktokUsername.trim().isEmpty()) {
-            return; // No username configured
+        String username = ModConfig.getInstance().tiktokUsername;
+        if (username == null || username.trim().isEmpty()) {
+            return;
         }
+        final String host = username.trim();
 
-        liveThread = new Thread(() -> {
-            try {
-                client = TikTokLive.newClient(ModConfig.getInstance().tiktokUsername)
-                    .onConnected((liveClient, event) -> {
-                        connectionStartTime = System.currentTimeMillis();
-                        sendMessage("§a[TikTok] Успешно подключено к стриму " + ModConfig.getInstance().tiktokUsername + "!");
-                    })
-                    .onDisconnected((liveClient, event) -> {
-                        connectionStartTime = 0;
-                        sendMessage("§c[TikTok] Отключено от стрима.");
-                    })
-                    .onError((liveClient, event) -> {
-                        sendMessage("§c[TikTok] Ошибка: " + event.getException().getMessage());
-                    })
-                    .onComment((liveClient, event) -> {
-                        if (isRecentEvent()) {
-                            displayEvent("§f[TikTok] §b" + event.getUser().getProfileName() + "§f: " + event.getText(), ModConfig.getInstance().displayComments);
-                        }
-                    })
-                    .onGift((liveClient, event) -> {
-                        if (isRecentEvent()) {
-                            displayEvent("§f[TikTok] §d" + event.getUser().getProfileName() + " отправил(а) " + event.getGift().getName() + " x" + event.getCombo(), ModConfig.getInstance().displayGifts);
-                        }
-                    })
-                    .onLike((liveClient, event) -> {
-                        if (isRecentEvent()) {
-                            displayEvent("§f[TikTok] §c" + event.getUser().getProfileName() + " поставил(-а) лайк трансляции", ModConfig.getInstance().displayLikes);
-                        }
-                    })
-                    .onFollow((liveClient, event) -> {
-                        if (isRecentEvent()) {
-                            displayEvent("§f[TikTok] §e" + event.getUser().getProfileName() + " теперь подписчик", ModConfig.getInstance().displayNewFollowers);
-                        }
-                    })
-                    .onShare((liveClient, event) -> {
-                        if (isRecentEvent()) {
-                            displayEvent("§f[TikTok] §9" + event.getUser().getProfileName() + " поделился(лась) трансляцией", ModConfig.getInstance().displayShares);
-                        }
-                    })
-                    .onJoin((liveClient, event) -> {
-                        if (isRecentEvent()) {
-                            displayEvent("§f[TikTok] §7" + event.getUser().getProfileName() + " теперь с нами", ModConfig.getInstance().displayNewViewers);
-                        }
-                    })
-                    .onSubscribe((liveClient, event) -> {
-                        if (isRecentEvent()) {
-                            displayEvent("§f[TikTok] §6" + event.getUser().getProfileName() + " оформил(а) платную подписку!", ModConfig.getInstance().displaySuperfanSubscriptions);
-                        }
-                    })
-                    .buildAndConnect();
-            } catch (Exception e) {
-                StreamChatMod.LOGGER.error("TikTokLive Error", e);
+        synchronized (LOCK) {
+            if (isRunning()) {
+                StreamChatMod.LOGGER.warn("TikTok live client already running; call stop()/restart() first");
+                return;
             }
-        }, "TikTokLive-Thread");
-        liveThread.setDaemon(true);
-        liveThread.start();
+
+            liveThread = new Thread(() -> runClient(host), "TikTokLive-Thread");
+            liveThread.setDaemon(true);
+            liveThread.start();
+        }
     }
 
+    /**
+     * Disconnect without blocking the caller (safe on the Minecraft client thread).
+     * If the background thread is still alive, {@link #start()} will refuse until it exits
+     * or {@link #restart()} awaits it off-thread.
+     */
     public static void stop() {
-        if (client != null) {
-            client.disconnect();
+        stopInternal(false);
+    }
+
+    /**
+     * Stop on a worker thread (with join), then start again. Use for /tiktok connect.
+     */
+    public static void restart() {
+        Thread worker = new Thread(() -> {
+            stopInternal(true);
+            start();
+        }, "TikTokLive-Restart");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private static void stopInternal(boolean awaitThread) {
+        LiveClient toDisconnect;
+        Thread toJoin;
+
+        synchronized (LOCK) {
+            toDisconnect = client;
             client = null;
-        }
-        // Wait for the background thread to fully terminate before allowing
-        // a new connection to start — prevents two clients from being alive
-        // simultaneously and delivering duplicate events to the game chat.
-        if (liveThread != null && liveThread.isAlive()) {
-            try {
-                liveThread.join(3000);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-            }
-            liveThread = null;
-        }
-    }
-
-    private static void sendMessage(String message) {
-        if (message == null) message = "";
-        Minecraft mc = Minecraft.getInstance();
-        if (mc != null) {
-            var player = mc.player;
-            if (player != null) {
-                final String finalMessage = message;
-                mc.execute(() -> player.sendSystemMessage(Component.literal(finalMessage)));
-            }
-        }
-    }
-
-    private static void displayEvent(String message, ModConfig.DisplayMode mode) {
-        if (mode == ModConfig.DisplayMode.HIDDEN) return;
-        if (message == null) message = "";
-        Minecraft mc = Minecraft.getInstance();
-        if (mc != null) {
-            var player = mc.player;
-            var gui = mc.gui;
-            if (player != null) {
-                String processedMessage = message;
-                if (mode == ModConfig.DisplayMode.ACTION_BAR || mode == ModConfig.DisplayMode.TITLE) {
-                    processedMessage = processedMessage.replaceFirst("^§.\\[TikTok\\] ", "");
+            connectionStartTime = 0;
+            toJoin = liveThread;
+            if (!awaitThread) {
+                // Keep liveThread reference while alive so start() cannot race a duplicate client.
+                if (toJoin != null && !toJoin.isAlive()) {
+                    liveThread = null;
                 }
-                final String finalMessage = processedMessage;
-                mc.execute(() -> {
-                    Component text = Component.literal(finalMessage);
-                    if (mode == ModConfig.DisplayMode.CHAT) {
-                        player.sendSystemMessage(text);
-                    } else if (mode == ModConfig.DisplayMode.ACTION_BAR && gui != null) {
-                        gui.setOverlayMessage(text, false);
-                    } else if (mode == ModConfig.DisplayMode.TITLE && gui != null) {
-                        gui.setTimes(10, 70, 20); 
-                        gui.setTitle(text);
-                        gui.setSubtitle(Component.empty());
-                    }
-                });
             }
         }
+
+        if (toDisconnect != null) {
+            try {
+                toDisconnect.disconnect();
+            } catch (Exception e) {
+                StreamChatMod.LOGGER.warn("Error disconnecting TikTok client: {}", e.getMessage());
+            }
+        }
+
+        if (toJoin != null && toJoin.isAlive()) {
+            toJoin.interrupt();
+            if (awaitThread) {
+                try {
+                    toJoin.join(STOP_JOIN_MILLIS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                synchronized (LOCK) {
+                    if (liveThread == toJoin) {
+                        if (toJoin.isAlive()) {
+                            StreamChatMod.LOGGER.warn("TikTok live thread did not exit within {}ms; refusing to clear handle", STOP_JOIN_MILLIS);
+                        } else {
+                            liveThread = null;
+                        }
+                    }
+                }
+            }
+        } else if (awaitThread) {
+            synchronized (LOCK) {
+                if (liveThread == toJoin) {
+                    liveThread = null;
+                }
+            }
+        }
+    }
+
+    private static void runClient(String host) {
+        final Thread self = Thread.currentThread();
+        try {
+            TikTokLive.newClient(host)
+                .onConnected((liveClient, event) -> {
+                    synchronized (LOCK) {
+                        if (liveThread != self) {
+                            try {
+                                liveClient.disconnect();
+                            } catch (Exception ignored) {
+                                // superseded
+                            }
+                            return;
+                        }
+                        client = liveClient;
+                        connectionStartTime = System.currentTimeMillis();
+                    }
+                    TikTokEventPresenter.systemMessage("§a[TikTok] Успешно подключено к стриму " + host + "!");
+                })
+                .onDisconnected((liveClient, event) -> {
+                    connectionStartTime = 0;
+                    TikTokEventPresenter.systemMessage("§c[TikTok] Отключено от стрима.");
+                })
+                .onError((liveClient, event) -> {
+                    String detail = event.getException() != null ? event.getException().getMessage() : "unknown";
+                    TikTokEventPresenter.systemMessage("§c[TikTok] Ошибка: " + detail);
+                })
+                .onComment((liveClient, event) -> emit(
+                    EventKind.COMMENT,
+                    "§b" + sanitize(event.getUser().getProfileName()) + "§f: " + sanitize(event.getText())
+                ))
+                .onGift((liveClient, event) -> emit(
+                    EventKind.GIFT,
+                    "§d" + sanitize(event.getUser().getProfileName()) + " отправил(а) "
+                        + sanitize(event.getGift().getName()) + " x" + event.getCombo()
+                ))
+                .onLike((liveClient, event) -> emit(
+                    EventKind.LIKE,
+                    "§c" + sanitize(event.getUser().getProfileName()) + " поставил(-а) лайк трансляции"
+                ))
+                .onFollow((liveClient, event) -> emit(
+                    EventKind.FOLLOW,
+                    "§e" + sanitize(event.getUser().getProfileName()) + " теперь подписчик"
+                ))
+                .onShare((liveClient, event) -> emit(
+                    EventKind.SHARE,
+                    "§9" + sanitize(event.getUser().getProfileName()) + " поделился(лась) трансляцией"
+                ))
+                .onJoin((liveClient, event) -> emit(
+                    EventKind.JOIN,
+                    "§7" + sanitize(event.getUser().getProfileName()) + " теперь с нами"
+                ))
+                .onSubscribe((liveClient, event) -> emit(
+                    EventKind.SUBSCRIBE,
+                    "§6" + sanitize(event.getUser().getProfileName()) + " оформил(а) платную подписку!"
+                ))
+                .buildAndConnect();
+        } catch (Exception e) {
+            StreamChatMod.LOGGER.error("TikTokLive Error", e);
+        } finally {
+            synchronized (LOCK) {
+                if (liveThread == self) {
+                    client = null;
+                    connectionStartTime = 0;
+                    liveThread = null;
+                }
+            }
+        }
+    }
+
+    private static void emit(EventKind kind, String body) {
+        if (!isPastBacklogWindow()) {
+            return;
+        }
+        TikTokEventPresenter.present(ModConfig.getInstance().modeFor(kind), body);
+    }
+
+    private static String sanitize(String value) {
+        if (value == null) {
+            return "";
+        }
+        // Strip section-sign formatting / control chars from untrusted TikTok strings.
+        return value.replace('§', ' ').replace('\n', ' ').replace('\r', ' ');
     }
 }
