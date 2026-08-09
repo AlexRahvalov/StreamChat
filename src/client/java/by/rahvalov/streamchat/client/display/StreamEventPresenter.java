@@ -1,23 +1,22 @@
-package by.rahvalov.streamchat.client.tiktok;
+package by.rahvalov.streamchat.client.display;
 
 import by.rahvalov.streamchat.client.config.ModConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
 /**
- * Routes TikTok event text to Minecraft chat / action bar / title.
+ * Routes stream event text to Minecraft chat / action bar / title.
  * Expects a prefix-free body; chat prefix is applied only for {@link ModConfig.DisplayMode#CHAT}.
  */
-public final class TikTokEventPresenter {
-    private static final String CHAT_PREFIX = "§f[TikTok] ";
-
-    private TikTokEventPresenter() {
+public final class StreamEventPresenter {
+    private StreamEventPresenter() {
     }
 
-    public static void present(ModConfig.DisplayMode mode, String body) {
+    public static void present(String platform, ModConfig.DisplayMode mode, String body) {
         if (mode == null || mode == ModConfig.DisplayMode.HIDDEN) {
             return;
         }
+        final String tag = platform == null || platform.isBlank() ? "Stream" : platform;
         final String text = body == null ? "" : body;
         Minecraft mc = Minecraft.getInstance();
         if (mc == null) {
@@ -32,7 +31,7 @@ public final class TikTokEventPresenter {
             }
 
             switch (mode) {
-                case CHAT -> player.sendSystemMessage(Component.literal(CHAT_PREFIX + text));
+                case CHAT -> player.sendSystemMessage(Component.literal("§f[" + tag + "] " + text));
                 case ACTION_BAR -> {
                     if (gui != null) {
                         gui.setOverlayMessage(Component.literal(text), false);

@@ -3,17 +3,12 @@ plugins {
 	id 'maven-publish'
 }
 
-import java.text.SimpleDateFormat
-import java.util.Date
-
-def dateFormat = new SimpleDateFormat("yyMMdd-HHmm")
-def buildTime = dateFormat.format(new Date())
-
-version = "${buildTime}-SNAPSHOT"
+version = project.mod_version
 group = project.maven_group
 
 repositories {
 	maven { url 'https://jitpack.io' }
+	maven { url 'https://raw.githubusercontent.com/kusaanko/maven/main/' }
 }
 
 loom {
@@ -56,6 +51,10 @@ dependencies {
 
 	implementation 'com.google.protobuf:protobuf-java:4.26.1'
 	include 'com.google.protobuf:protobuf-java:4.26.1'
+
+	// YouTube Live Chat (no official API key required)
+	implementation 'com.github.kusaanko:YouTubeLiveChat:2.0'
+	include 'com.github.kusaanko:YouTubeLiveChat:2.0'
 }
 
 processResources {

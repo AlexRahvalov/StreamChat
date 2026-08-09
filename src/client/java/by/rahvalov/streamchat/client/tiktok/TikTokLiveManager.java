@@ -3,12 +3,14 @@ package by.rahvalov.streamchat.client.tiktok;
 import by.rahvalov.streamchat.StreamChatMod;
 import by.rahvalov.streamchat.client.config.EventKind;
 import by.rahvalov.streamchat.client.config.ModConfig;
+import by.rahvalov.streamchat.client.display.StreamEventPresenter;
 import io.github.jwdeveloper.tiktok.TikTokLive;
 import io.github.jwdeveloper.tiktok.live.LiveClient;
 
 public class TikTokLiveManager {
 
     private static final Object LOCK = new Object();
+    private static final String PLATFORM = "TikTok";
     private static final long BACKLOG_MILLIS = 1500L;
     private static final long STOP_JOIN_MILLIS = 5000L;
 
@@ -134,15 +136,15 @@ public class TikTokLiveManager {
                         client = liveClient;
                         connectionStartTime = System.currentTimeMillis();
                     }
-                    TikTokEventPresenter.systemMessage("§a[TikTok] Успешно подключено к стриму " + host + "!");
+                    StreamEventPresenter.systemMessage("§a[TikTok] Успешно подключено к стриму " + host + "!");
                 })
                 .onDisconnected((liveClient, event) -> {
                     connectionStartTime = 0;
-                    TikTokEventPresenter.systemMessage("§c[TikTok] Отключено от стрима.");
+                    StreamEventPresenter.systemMessage("§c[TikTok] Отключено от стрима.");
                 })
                 .onError((liveClient, event) -> {
                     String detail = event.getException() != null ? event.getException().getMessage() : "unknown";
-                    TikTokEventPresenter.systemMessage("§c[TikTok] Ошибка: " + detail);
+                    StreamEventPresenter.systemMessage("§c[TikTok] Ошибка: " + detail);
                 })
                 .onComment((liveClient, event) -> emit(
                     EventKind.COMMENT,
@@ -191,7 +193,7 @@ public class TikTokLiveManager {
         if (!isPastBacklogWindow()) {
             return;
         }
-        TikTokEventPresenter.present(ModConfig.getInstance().modeFor(kind), body);
+        StreamEventPresenter.present(PLATFORM, ModConfig.getInstance().modeFor(kind), body);
     }
 
     private static String sanitize(String value) {

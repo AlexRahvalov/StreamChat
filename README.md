@@ -1,37 +1,59 @@
 # StreamChat 🎮📱
 
-**StreamChat** is a client-side Minecraft (Fabric) mod that integrates TikTok Live chat directly into your game!
+**StreamChat** is a client-side Minecraft (Fabric) mod that integrates **TikTok Live** and **YouTube Live** chat directly into your game!
 
-Perfect for streamers who want to communicate with their TikTok audience without getting distracted from the gameplay. The mod broadcasts comments, gifts, likes, subscriptions, and new viewer information in real-time right to the Minecraft in-game chat.
+Perfect for streamers who want to communicate with their audience without getting distracted from gameplay. The mod broadcasts comments, gifts/Super Chats, likes, subscriptions/memberships, and other events in real-time right into the Minecraft chat.
 
 [🇷🇺 Читать на русском](README_RU.md)
 
 ## 🚀 Project Overview
-The core idea of StreamChat is to create a seamless bridge between a Minecraft streamer and their TikTok viewers. Instead of using a second monitor or getting distracted by checking a phone to read the chat, the streamer can see all important events right in the game chat, overlaid on top of the gameplay.
+StreamChat creates a seamless bridge between a Minecraft streamer and viewers on TikTok and YouTube. Instead of using a second monitor or checking a phone, important chat events appear in-game.
 
 ## ⚙️ How It Works
-The mod uses the unofficial `TikTokLive` library (by JWDeveloper) to connect to TikTok Live WebSockets.
-1. **Connection:** You enter your TikTok username in the configuration or use the `/tiktok connect <your_nickname>` command.
-2. **Background Process:** The mod launches a separate lightweight thread that connects to TikTok servers and starts listening for events (messages, gifts, likes, etc.).
-3. **Smart Filtering:** A built-in "history filter" ignores old events (backlog) that arrive within the first 1.5 seconds after connecting, ensuring your in-game chat isn't spammed with old messages.
-4. **Game Integration:** All new events that are enabled in the settings are converted into Minecraft text components (`Component`) with appropriate color formatting (e.g., gold for paid subscriptions, pink for gifts) and are sent directly to the local player (`mc.player.sendSystemMessage`).
 
-## 🛠️ Features:
-- **Quick Controls:** Use the `/tiktok connect <your_nickname>` command to start and `/tiktok disconnect` to stop the event broadcast.
-- **Flexible Configuration:** Full control over what you want to see. You can specifically enable or disable the display of:
-  - Comments
-  - Gifts
-  - Likes
-  - New Followers
-  - Shares
-  - New Viewers (Joins)
-  - Superfan Subscriptions
-- **Full Localization:** The mod integrates naturally with Minecraft's chat style.
+### TikTok
+Uses the unofficial `TikTokLive` library (JWDeveloper) over TikTok Live WebSockets.
+1. `/tiktok connect <nickname>` (or set `tiktokUsername` in config)
+2. A background thread listens for comments, gifts, likes, follows, shares, joins, subscriptions
+3. A 1.5s backlog filter drops history dumped right after connect
+4. Events are shown via chat / action bar / title according to `displayModes`
+
+### YouTube
+Uses the official **YouTube Data API v3** with an API key (no OAuth for public live chats).
+1. Create an API key in [Google Cloud Console](https://console.cloud.google.com/) with **YouTube Data API v3** enabled
+2. `/youtube apikey <YOUR_KEY>`
+3. `/youtube connect <videoId|url>` while the stream is live
+4. The mod resolves `activeLiveChatId`, skips the first history page, then polls new messages (comments, Super Chat, Super Stickers, memberships)
+
+## 🛠️ Commands
+
+| Command | Description |
+|---------|-------------|
+| `/tiktok connect <nickname>` | Connect to a TikTok live |
+| `/tiktok disconnect` | Stop TikTok |
+| `/youtube apikey <KEY>` | Save YouTube Data API key to `streamchat.json` |
+| `/youtube connect <videoId\|url>` | Connect to a YouTube live chat |
+| `/youtube disconnect` | Stop YouTube |
+
+Supported YouTube targets: raw video id, `youtube.com/watch?v=…`, `youtu.be/…`, `/live/…`, `/embed/…`.
+
+## ⚙️ Configuration (`config/streamchat.json`)
+- `tiktokUsername` — TikTok host nickname
+- `youtubeApiKey` — YouTube Data API v3 key
+- `youtubeVideoId` — last connected YouTube video id
+- `displayModes` — per-event display: `HIDDEN`, `CHAT`, `ACTION_BAR`, `TITLE` for `COMMENT`, `GIFT`, `LIKE`, `FOLLOW`, `SHARE`, `JOIN`, `SUBSCRIBE`
+
+YouTube mapping:
+- comments → `COMMENT`
+- Super Chat / Super Sticker → `GIFT`
+- memberships → `SUBSCRIBE`
+
+**Security note:** the API key is stored in plain text in `streamchat.json`. Do not share that file; restrict the key in Google Cloud (API restrictions / quotas).
 
 ## 📥 Installation
-1. Install [Fabric Loader](https://fabricmc.net/) for your Minecraft version (version ~26.1.2 is supported).
-2. Place the compiled `.jar` file of the mod (as well as necessary dependencies, including Fabric API) into the `mods` folder of your game.
-3. Launch the game. The configuration file will be created automatically, after which you can customize the mod to your liking.
+1. Install [Fabric Loader](https://fabricmc.net/) for Minecraft ~26.1.2
+2. Place the mod jar and Fabric API into `mods`
+3. Launch the game — config is created automatically
 
 ## 👨‍💻 Author
 - **AlexRahvalov** (Illdiesooon / ALEX BY-3)

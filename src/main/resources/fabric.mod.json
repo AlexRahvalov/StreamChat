@@ -3,7 +3,7 @@
 	"id": "streamchat",
 	"version": "${version}",
 	"name": "Stream Chat",
-	"description": "Broadcasts TikTok Live chat events to Minecraft.",
+	"description": "Broadcasts TikTok Live and YouTube Live chat events to Minecraft.",
 	"authors": [
 		"AlexRahvalov"
 	],

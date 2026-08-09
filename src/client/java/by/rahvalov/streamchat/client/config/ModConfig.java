@@ -18,7 +18,7 @@ import java.util.Map;
 public class ModConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final File CONFIG_FILE = FabricLoader.getInstance().getConfigDir().resolve("streamchat.json").toFile();
-    private static final int CURRENT_VERSION = 3;
+    private static final int CURRENT_VERSION = 4;
 
     private static ModConfig instance = new ModConfig();
 
@@ -32,6 +32,10 @@ public class ModConfig {
 
     public int configVersion = CURRENT_VERSION;
     public String tiktokUsername = "";
+    /** YouTube Data API v3 key (required for YouTube live chat). */
+    public String youtubeApiKey = "";
+    /** YouTube video id (or previously resolved id) of the live stream. */
+    public String youtubeVideoId = "";
     public Map<EventKind, DisplayMode> displayModes = defaultDisplayModes();
 
     public static DisplayMode defaultMode(EventKind kind) {
@@ -61,6 +65,12 @@ public class ModConfig {
     public void validate() {
         if (tiktokUsername == null) {
             tiktokUsername = "";
+        }
+        if (youtubeApiKey == null) {
+            youtubeApiKey = "";
+        }
+        if (youtubeVideoId == null) {
+            youtubeVideoId = "";
         }
         if (displayModes == null) {
             displayModes = defaultDisplayModes();
