@@ -51,9 +51,26 @@ YouTube mapping:
 **Security note:** the API key is stored in plain text in `streamchat.json`. Do not share that file; restrict the key in Google Cloud (API restrictions / quotas).
 
 ## 📥 Installation
-1. Install [Fabric Loader](https://fabricmc.net/) for Minecraft ~26.1.2
+1. Install [Fabric Loader](https://fabricmc.net/) for Minecraft 26.1.2–26.3
 2. Place the mod jar and Fabric API into `mods`
 3. Launch the game — config is created automatically
+
+## Changelog
+
+### 0.3.0
+- One jar covers Minecraft 26.1.2–26.3. The build target is 26.3, with Fabric Loader 0.19.5 and Fabric API 0.163.0+26.3. Action bar and title use `Gui` on 26.1.2 and `Gui.hud` on 26.2/26.3.
+- TikTok connect no longer sits on a single dead edge address. A local proxy tries the hostname's IPv4 addresses and keeps the first one that accepts a connection.
+- The connect thread stays up until the live session actually opens. If the stream does not answer within 20 seconds, chat shows an error instead of hanging on the connect line.
+- Restarting TikTok no longer reports a disconnect for the session that was just stopped.
+- Connection failures are written to the game log and shown in chat as a short message.
+
+### 0.2.0
+- YouTube Live chat through the YouTube Data API v3, alongside TikTok.
+
+## Content disclosure
+This project includes AI-generated or AI-assisted content.
+- **AI-generated or assisted code.** Parts of the mod, including TikTok connection handling and HUD compatibility for Minecraft 26.1.2–26.3, were written with the assistance of Cursor.
+- **AI-generated or assisted text.** The English and Russian project descriptions and translations in this README were written or edited with the assistance of Cursor.
 
 ## 👨‍💻 Author
 - **AlexRahvalov** (Illdiesooon / ALEX BY-3)

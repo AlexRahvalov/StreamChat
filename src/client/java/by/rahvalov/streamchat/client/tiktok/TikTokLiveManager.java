@@ -5,7 +5,17 @@ import by.rahvalov.streamchat.client.config.EventKind;
 import by.rahvalov.streamchat.client.config.ModConfig;
 import by.rahvalov.streamchat.client.display.StreamEventPresenter;
 import io.github.jwdeveloper.tiktok.TikTokLive;
+import io.github.jwdeveloper.tiktok.data.settings.ProxyClientSettings;
 import io.github.jwdeveloper.tiktok.live.LiveClient;
+
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.ProxySelector;
+import java.time.Duration;
+import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TikTokLiveManager {
 
@@ -121,8 +131,30 @@ public class TikTokLiveManager {
 
     private static void runClient(String host) {
         final Thread self = Thread.currentThread();
+        // connect() returns as soon as the socket thread starts. onConnected arrives later.
+        CountDownLatch opened = new CountDownLatch(1);
+        CountDownLatch closed = new CountDownLatch(1);
+        AtomicBoolean accepted = new AtomicBoolean();
         try {
-            TikTokLive.newClient(host)
+            int proxyPort = TikTokFailoverProxy.port();
+            var live = TikTokLive.newClient(host)
+                .configure(settings -> {
+                    // Whole seconds: the library feeds only Duration.toMillisPart() to the
+                    // websocket, so a fractional timeout would shrink that connect to <1s.
+                    var http = settings.getHttpSettings();
+                    http.setTimeout(Duration.ofSeconds(15));
+                    // Java's client keeps a single resolved address and waits out the
+                    // whole timeout when that address is dead. The local proxy retries
+                    // the hostname's other IPv4 addresses.
+                    http.onClientCreating(builder -> builder.proxy(
+                        ProxySelector.of(new InetSocketAddress("127.0.0.1", proxyPort))
+                    ));
+                    ProxyClientSettings proxy = http.getProxyClientSettings();
+                    proxy.setEnabled(true);
+                    proxy.setType(Proxy.Type.HTTP);
+                    proxy.setAllowWebsocket(true);
+                    proxy.addProxy("127.0.0.1", proxyPort);
+                })
                 .onConnected((liveClient, event) -> {
                     synchronized (LOCK) {
                         if (liveThread != self) {
@@ -131,20 +163,33 @@ public class TikTokLiveManager {
                             } catch (Exception ignored) {
                                 // superseded
                             }
+                            opened.countDown();
+                            closed.countDown();
                             return;
                         }
                         client = liveClient;
                         connectionStartTime = System.currentTimeMillis();
                     }
+                    accepted.set(true);
+                    opened.countDown();
                     StreamEventPresenter.systemMessage("§a[TikTok] Успешно подключено к стриму " + host + "!");
                 })
                 .onDisconnected((liveClient, event) -> {
-                    connectionStartTime = 0;
+                    opened.countDown();
+                    closed.countDown();
+                    synchronized (LOCK) {
+                        // stop()/restart() clears client first. That disconnect is not a drop.
+                        if (client != liveClient) {
+                            return;
+                        }
+                        connectionStartTime = 0;
+                    }
                     StreamEventPresenter.systemMessage("§c[TikTok] Отключено от стрима.");
                 })
                 .onError((liveClient, event) -> {
-                    String detail = event.getException() != null ? event.getException().getMessage() : "unknown";
-                    StreamEventPresenter.systemMessage("§c[TikTok] Ошибка: " + detail);
+                    Throwable error = event.getException();
+                    StreamChatMod.LOGGER.error("TikTok connection error", error);
+                    StreamEventPresenter.systemMessage("§c[TikTok] Ошибка: " + describe(error));
                 })
                 .onComment((liveClient, event) -> emit(
                     EventKind.COMMENT,
@@ -176,6 +221,17 @@ public class TikTokLiveManager {
                     "§6" + sanitize(event.getUser().getProfileName()) + " оформил(а) платную подписку!"
                 ))
                 .buildAndConnect();
+            if (!opened.await(20, TimeUnit.SECONDS) || !accepted.get()) {
+                StreamEventPresenter.systemMessage("§c[TikTok] Ошибка: стрим не ответил за 20 секунд.");
+                try {
+                    live.disconnect();
+                } catch (Exception ignored) {
+                    // already closed
+                }
+                closed.await(5, TimeUnit.SECONDS);
+            } else {
+                closed.await();
+            }
         } catch (Exception e) {
             StreamChatMod.LOGGER.error("TikTokLive Error", e);
         } finally {
@@ -194,6 +250,27 @@ public class TikTokLiveManager {
             return;
         }
         StreamEventPresenter.present(PLATFORM, ModConfig.getInstance().modeFor(kind), body);
+    }
+
+    private static String describe(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String message = error.getMessage();
+        Throwable cursor = error;
+        while (cursor.getCause() != null && cursor.getCause() != cursor) {
+            cursor = cursor.getCause();
+            if (cursor.getMessage() != null) {
+                message = cursor.getMessage();
+            }
+        }
+        if (message != null && message.toLowerCase(Locale.ROOT).contains("timed out")) {
+            return "сервер TikTok не ответил. С этой сети часть адресов TikTok недоступна.";
+        }
+        if (message != null && message.contains("502")) {
+            return "адрес стрима TikTok не ответил. Повтори подключение.";
+        }
+        return message == null ? error.getClass().getSimpleName() : message;
     }
 
     private static String sanitize(String value) {

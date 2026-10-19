@@ -38,3 +38,11 @@ hs_err_*.log
 replay_*.log
 *.hprof
 *.jfr
+
+# Junctions from the skill installer. The catalog is the .agents/ai-skills submodule.
+.agents/skills
+.claude/skills
+
+# Local reference clones. Not part of the mod.
+/ai-skills/
+/fabric-example-mod/
